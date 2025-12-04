@@ -1,5 +1,3 @@
-from ctypes import resize
-from neo4j import Session
 from backend.database.DBManager import DBManager
 
 
@@ -9,39 +7,54 @@ class Auth:
 
     def login(self, username: str, password: str) -> dict:
         session = self.db.get_session()
-        record = session.run("MATCH (p:UserN) where p.user = $user and p.password = $pword return p", user=username, pword=password).single()
-
-        if not record:
-            return {"success": False, "error": "Credenciales inválidas"}
-        node = record["p"]
-        id_userN = node["id_userN"]
-        pid = str(self.db.get_pid())
-        record = session.run("create (s:Sesion {id_sesion:randomUUID(), PID:$pid, active:true, id_userN:$id_userN}) return s.id_sesion as id_sesion", pid=pid, id_userN = id_userN).single()
-        id_sesion = record["id_sesion"]
-        return {
-            "success": True,
-            "user_id": id_userN,
-            "sesion_id": id_sesion,
-            "username": username,
-        }
-    
-
-    def logout(self, id_sesion: int) -> dict:
-        session = self.db.get_session()
         try:
-            record = session.run("match (s:Sesion) where s.id_sesion = $id_sesion return s", id_sesion=id_sesion).single()
-            if record:
-                session.run("match (s:Sesion) where s.id_sesion = $id_sesion set s.active = false")
-                return {"success": True}
-            return {"success": False, "error": "Sesión no encontrada"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+            record = session.run(
+                "MATCH (p:UserN) where p.user = $user and p.password = $pword return p",
+                user=username,
+                pword=password,
+            ).single()
+
+            if not record:
+                return {"success": False, "error": "Credenciales inválidas"}
+            user_node = record["p"]
+            self.create_session(user_node=user_node)
+            return {"success": True, "user": username}
         finally:
             session.close()
+
+    def logout(self, user):
+        session = self.db.get_session()
+        try:
+            session.run(
+                """
+            match(u:UserN {user:$user})-[r:TIENE_SESION]->(s:Sesion)
+            set r.active = false
+            """,
+                user=user,
+            )
+        finally:
+            session.close()
+
+    def create_session(self, user_node):
+        session = self.db.get_session()
+        try:
+            session.run(
+                """
+                MATCH  (p:UserN{user:$u})
+                CREATE (s:Sesion{PID:$connection_id})
+                CREATE (p)-[:TIENE_SESION {active:true}]->(s)
+                """,
+                connection_id=self.db.get_pid(),
+                u=user_node["user"],
+            )
+        finally:
+            session.close()
+
+
 if __name__ == "__main__":
     auth = Auth()
     result = auth.login("gordon", "freeman")
     if result["success"]:
         print("se logro")
-    else: 
+    else:
         print("nimodo")
