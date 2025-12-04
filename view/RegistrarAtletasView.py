@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QFont
 from backend.database.DBManager import DBManager
-import backend.services.AtletaService as AtletaService
+from backend.services.AtletaService import AtletaService
 
 
 class RegistrarAtletasView(QWidget):
@@ -174,7 +174,14 @@ class RegistrarAtletasView(QWidget):
 
     def cargar_paises(self):
         from backend.services.PaisService import PaisService
-        return PaisService().get_all_countries()
+
+        try:
+            paises = PaisService().get_all_countries()
+            self.combo_pais.addItem("-- Seleccione un país --", None)
+            for pais in paises:
+                self.combo_pais.addItem(pais, pais)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"No se pudieron cargar los países: {e}")
 
     def guardar_atleta(self):
         if not self.validar_formulario():
@@ -182,12 +189,12 @@ class RegistrarAtletasView(QWidget):
 
         fecha = self.input_fecha_nac.date().toPyDate().strftime("%Y-%m-%d")
 
-        resultado = AtletaService.create_atleta(
+        resultado = AtletaService().create_atleta(
             nombres=self.input_nombre.text(),
             apellidos=self.input_apellido.text(),
             fecha_nacimiento=fecha,
             sexo=self.combo_sexo.currentData(),
-            id_pais=self.combo_pais.currentData(),
+            pais=self.combo_pais.currentData(),
             altura=self.input_altura.value(),
             peso_kg=self.input_peso.value(),
         )
